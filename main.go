@@ -31,7 +31,7 @@ func main() {
 
 func createKubernetesClient() (*kubernetes.Clientset, error) {
 	var kubeconfig *string
-	if home := homeDir(); home != "" {
+	if home := os.Getenv("HOME"); home != "" {
 		kubeconfig = flag.String(
 			"kubeconfig",	filepath.Join(home, ".kube", "config"),
 			"(optional) absolute path to the kubeconfig file")
@@ -53,11 +53,4 @@ func createKubernetesClient() (*kubernetes.Clientset, error) {
 	}
 
 	return clientset, err
-}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return ""
 }
