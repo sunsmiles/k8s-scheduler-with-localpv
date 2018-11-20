@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	prioritiesPathPrefix = "/scheduler/priorities"
 	predicatesPathPrefix = "/scheduler/predicates"
 )
 
@@ -23,19 +22,19 @@ func main() {
 	log.Println("start main process, waiting for new request.")
 	//register rest api and related procedure
 	http.HandleFunc(predicatesPathPrefix+"/localpv", LocalPVPredicate)
-	//http.HandleFunc(prioritiesPathPrefix+"/localpv", LocalPVPriority)
 
 	err := http.ListenAndServe(":12345", nil)
 	if err != nil {
 		log.Fatal("ListenAndServ: ", err)
 	}
-
 }
 
 func createKubernetesClient() (*kubernetes.Clientset, error) {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+		kubeconfig = flag.String(
+			"kubeconfig",	filepath.Join(home, ".kube", "config"),
+			"(optional) absolute path to the kubeconfig file")
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
@@ -60,5 +59,5 @@ func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
 		return h
 	}
-	return os.Getenv("USERPROFILE") // windows
+	return ""
 }

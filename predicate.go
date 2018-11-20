@@ -35,7 +35,7 @@ func LocalPVPredicate(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		//实际的predicate处理过程
-		extenderFilterResult = predicateHandler(extenderArgs)
+		extenderFilterResult = pridicateProcedure(extenderArgs)
 	}
 
 	if resultBody, err := json.Marshal(extenderFilterResult); err != nil {
@@ -49,31 +49,23 @@ func LocalPVPredicate(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-Kubernetes使用PersistentVolume的.spec.nodeAffinity field来描述local volume与Node的绑定关系。
-
-将不符合条件的node，过滤掉
-
-    如果pod有local pv，
-        判断local pv是否已经绑定到node，
-            如果是，那么遍历nodelist找到对应的node，node列表只返回这一个node；
-            否则返回失败
-    否则，检查node是否需要预留资源给有local pv且绑定到此node但暂未分配到此node的pod，
-        如果是，则扣除此部分资源之后，再判断是否满足pod资源需求；
-        不满足则将此node放在cannotScheduleNode列表中
+1. 如果pod存在localpv，则直接根据localpv找到对应的node，并返回；
+2. 如果pod没有localpv，但node有localpv，则根据localpv找到所有对应的pod，
+       1） 如果存在未调度的pod，则预留出相应的资源之后，判断node是否能够满足资源需求；
 */
-func predicateHandler(args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
+func pridicateProcedure(args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
 	canSchedule := make([]v1.Node, 0, len(args.Nodes.Items))
 	canNotSchedule := make(map[string]string)
 
 	pod := args.Pod
 	nodes := args.Nodes
 
-	//尝试从nodes中找到local pv所绑定的node，并将其作为node节点
+	//如果pod存在localpv
 	if hasLocalPV := hasLocalPVOfPod(pod); hasLocalPV {
 		nodeMap, _ := getLocalPVNodeFromPod(pod)
 		if len(nodeMap) == 1 { //如果所有localpv都绑定到同一个node上面
 			nodeName := ""
-			for k, _ := range nodeMap {
+			for k := range nodeMap {
 				nodeName = k
 			}
 
@@ -88,17 +80,19 @@ func predicateHandler(args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilt
 					}
 				}
 			} else {
+				//如果根据nodeName没有找到对应的node，则将所有node全部加入不可调度列表中
 				for _, n := range nodes.Items {
 					canNotSchedule[n.Name] = "not the local pv node for pod"
 				}
 			}
-		} else {
-			//如果没有找到对应的node，则将所有node放入cannotSchedule列表中
+		} else if len(nodeMap) > 1 {
+			//如果所有localpv绑定到了多个node上面，是不应该出现的不合理情况，将所有node全部加入不可调度列表中
 			for _, n := range nodes.Items {
 				canNotSchedule[n.Name] = "Not the local pv bind node."
 			}
 		}
-	} else { //如果pod没有声明local pv，则检查是否所有的node都有未绑定的要求local pv的pod，有则扣除对应的资源
+	} else {
+		//如果pod没有声明local pv，则检查是否node有未绑定的要求local pv的pod，有则扣除对应的资源
 		for _, node := range nodes.Items {
 			//检查扣除相应pod资源之后，是否还有空间存放当前pod，如果不能则加入到cannotSchedule列表
 			if canHost(pod, &node) {
@@ -121,6 +115,8 @@ func predicateHandler(args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilt
 
 func canHost(pod *v1.Pod, node *v1.Node) bool {
 	var totalCpu, totalMem int64
+	totalCpu = 0
+	totalMem = 0
 	for _, container := range pod.Spec.Containers {
 		cpu, _ := container.Resources.Requests.Cpu().AsInt64()
 		totalCpu += cpu
@@ -145,10 +141,10 @@ func canHost(pod *v1.Pod, node *v1.Node) bool {
 为了将pods中没有调度到当前节点的pods对应的资源预留出来，需要计算这些pods需要多少资源。
 */
 func getLocalPVPodResource(node *v1.Node) (cpu int64, mem int64) {
-	//找到所有的pv，过滤出所有的localpv，并且绑定的node节点为当前node
 	//node.Status.Allocatable.Pods().AsInt64()
 	//node.Status.VolumesAttached
 
+	//找到所有的pv，过滤出所有的localpv，并且绑定的node节点为当前node
 	pvs, err := k8scli.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
 	if err != nil {
 		return 0, 0
