@@ -6,15 +6,11 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 	"time"
 )
 
-func testK8scli() {
-	testNode()
-	testPod()
-	testPVC()
-	testPV()
-	return
+func TestK8scli(t*testing.T) {
 	for {
 		items, err := k8scli.CoreV1().Pods("").List(metav1.ListOptions{})
 		if err != nil {
@@ -70,7 +66,7 @@ func testK8scli() {
 
 }
 
-func testPod() {
+func TestPod(t*testing.T) {
 	pods, err := k8scli.CoreV1().Pods("default").List(metav1.ListOptions{})
 	if err != nil {
 		panic(err.Error())
@@ -89,7 +85,7 @@ func testPod() {
 	}
 }
 
-func testPVC() {
+func TestPVC(t*testing.T) {
 	pvc, err := k8scli.CoreV1().PersistentVolumeClaims("default").Get("k8s-local-claim-web-0", metav1.GetOptions{})
 	if err != nil {
 		panic(err.Error())
@@ -98,7 +94,7 @@ func testPVC() {
 	fmt.Printf("pvc name: %s, status: %v, storageClassName:%s, contents:%v\n", pvc.Name, pvc.Status.Phase, *pvc.Spec.StorageClassName, pvc)
 }
 
-func testPV() {
+func TestPV(t*testing.T) {
 	pvs, err := k8scli.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
 	if err != nil {
 		panic(err.Error())
@@ -120,14 +116,15 @@ func testPV() {
 	}
 }
 
-func testNode() {
+func TestNode(t*testing.T) {
 	nodes, err := k8scli.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
-		panic(err.Error())
+		t.Error(err.Error())
+		return
 	}
-	fmt.Printf("Number of nodes listed is: %d\n", len(nodes.Items))
+	t.Logf("Number of nodes listed is: %d\n", len(nodes.Items))
 	for _, n := range nodes.Items {
 		bytes, _ := json.Marshal(n)
-		fmt.Printf("NodeName: %s, VolumeAttacthed:%v, VolumeInuse: %v, node: %v\n", n.Name, n.Status.VolumesAttached, n.Status.VolumesInUse, string(bytes))
+		t.Logf("NodeName: %s, VolumeAttacthed:%v, VolumeInuse: %v, node: %v\n", n.Name, n.Status.VolumesAttached, n.Status.VolumesInUse, string(bytes))
 	}
 }
