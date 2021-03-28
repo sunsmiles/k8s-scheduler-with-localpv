@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+func init(){
+	k8scli, _ = createKubernetesClient()
+}
 func TestK8scli(t*testing.T) {
 	for {
 		items, err := k8scli.CoreV1().Pods("").List(metav1.ListOptions{})
@@ -127,4 +130,8 @@ func TestNode(t*testing.T) {
 		bytes, _ := json.Marshal(n)
 		t.Logf("NodeName: %s, VolumeAttacthed:%v, VolumeInuse: %v, node: %v\n", n.Name, n.Status.VolumesAttached, n.Status.VolumesInUse, string(bytes))
 	}
+}
+
+func TestHelloWorld(t*testing.T){
+	t.Logf("Hello, World!")
 }
